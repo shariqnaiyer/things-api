@@ -61,8 +61,8 @@ pub fn get_tasks(list_filter: Option<&str>) -> Result<Vec<Task>, String> {
                 set ttags to ttags & "," & name of tg
             end if
         end repeat
-        set tcompleted to completed of t
-        set tcanceled to canceled of t
+        set tcompleted to (status of t is completed)
+        set tcanceled to (status of t is canceled)
         set tcreation to creation date of t
         if tcreation is missing value then
             set tcreation to ""
@@ -118,8 +118,8 @@ pub fn get_task_by_id(task_id: &str) -> Result<Task, String> {
             set ttags to ttags & "," & name of tg
         end if
     end repeat
-    set tcompleted to completed of t
-    set tcanceled to canceled of t
+    set tcompleted to (status of t is completed)
+    set tcanceled to (status of t is canceled)
     set tcreation to creation date of t
     if tcreation is missing value then
         set tcreation to ""
@@ -351,8 +351,8 @@ pub fn get_projects() -> Result<Vec<Project>, String> {
                 set ptags to ptags & "," & name of tg
             end if
         end repeat
-        set pcompleted to completed of p
-        set pcanceled to canceled of p
+        set pcompleted to (status of p is completed)
+        set pcanceled to (status of p is canceled)
         set output to output & pid & "|" & ptitle & "|" & pnotes & "|" & parea & "|" & ptags & "|" & pcompleted & "|" & pcanceled & "\n"
     end repeat
     return output
