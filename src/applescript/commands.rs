@@ -200,20 +200,6 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
         String::new()
     };
 
-    // List/project destination
-    let dest = if let Some(project) = &payload.project {
-        format!("project \"{}\" of", esc(project))
-    } else {
-        let list_name = match payload.list.as_deref() {
-            Some("today") => "Today",
-            Some("upcoming") => "Upcoming",
-            Some("anytime") => "Anytime",
-            Some("someday") => "Someday",
-            _ => "Inbox",
-        };
-        format!("list \"{}\" of", list_name)
-    };
-
     // Checklist items
     let checklist_script = if let Some(items) = &payload.checklist_items {
         items
@@ -230,9 +216,22 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
         String::new()
     };
 
+    // Build list/project assignment after creation
+    let move_script = if let Some(project) = &payload.project {
+        format!("\n    move newTask to project \"{}\"", esc(project))
+    } else {
+        match payload.list.as_deref() {
+            Some("today") => "\n    move newTask to list \"Today\"".to_string(),
+            Some("upcoming") => "\n    move newTask to list \"Upcoming\"".to_string(),
+            Some("anytime") => "\n    move newTask to list \"Anytime\"".to_string(),
+            Some("someday") => "\n    move newTask to list \"Someday\"".to_string(),
+            _ => String::new(), // Inbox is default
+        }
+    };
+
     let script = format!(
         r#"tell application "Things3"
-    set newTask to make new to do at end of {dest} application "Things3" with properties {{{props}}}{tags_script}{checklist_script}
+    set newTask to make new to do with properties {{{props}}}{move_script}{tags_script}{checklist_script}
     return id of newTask
 end tell"#
     );
