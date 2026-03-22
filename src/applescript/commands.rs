@@ -214,21 +214,9 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
         String::new()
     };
 
-    // Checklist items
-    let checklist_script = if let Some(items) = &payload.checklist_items {
-        items
-            .iter()
-            .map(|item| {
-                format!(
-                    "\n    make new checklist item at end of checklist items of newTask with properties {{name:\"{}\"}}",
-                    esc(item)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("")
-    } else {
-        String::new()
-    };
+    // Checklist items — Things 3 doesn't support checklist manipulation via AppleScript.
+    // We handle this after task creation via the URL scheme.
+    let checklist_script = String::new();
 
     // Build list/project assignment after creation.
     // Things 3 smart lists aren't containers — use URL scheme to schedule.
@@ -271,6 +259,35 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
 
     let id = run_applescript(&script)?;
     let id = id.trim().to_string();
+
+    // Add checklist items via URL scheme (AppleScript doesn't support checklist manipulation)
+    if let Some(items) = &payload.checklist_items {
+        if !items.is_empty() {
+            let token = things_auth_token();
+            let auth = if token.is_empty() {
+                String::new()
+            } else {
+                format!("&auth-token={token}")
+            };
+            let checklist_json: Vec<String> = items
+                .iter()
+                .map(|item| {
+                    format!(
+                        "{{\"type\":\"checklist-item\",\"attributes\":{{\"title\":\"{}\"}}}}",
+                        esc(item)
+                    )
+                })
+                .collect();
+            let json_str = format!("[{}]", checklist_json.join(","));
+            let encoded = urlencoding::encode(&json_str);
+            let url = format!("things:///update?id={id}&checklist-items={encoded}{auth}");
+            let open_script = format!("do shell script \"open '{}'\"", url.replace('\'', "'\\''"));
+            let _ = run_applescript(&open_script);
+            // Small delay to let Things process the URL
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    }
+
     get_task_by_id(&id)
 }
 
