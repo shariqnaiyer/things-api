@@ -217,15 +217,18 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
     };
 
     // Build list/project assignment after creation
+    // Things 3 smart lists (Today, Upcoming, etc.) aren't containers you can move to.
+    // Instead: Today = set activation date, Someday = set status to someday, etc.
     let move_script = if let Some(project) = &payload.project {
-        format!("\n    move newTask to project \"{}\"", esc(project))
+        format!(
+            "\n    set theProject to project \"{}\"\n    move newTask to theProject",
+            esc(project)
+        )
     } else {
         match payload.list.as_deref() {
-            Some("today") => "\n    move newTask to list \"Today\"".to_string(),
-            Some("upcoming") => "\n    move newTask to list \"Upcoming\"".to_string(),
-            Some("anytime") => "\n    move newTask to list \"Anytime\"".to_string(),
-            Some("someday") => "\n    move newTask to list \"Someday\"".to_string(),
-            _ => String::new(), // Inbox is default
+            Some("today") => "\n    set activation date of newTask to (current date)".to_string(),
+            Some("someday") => "\n    set status of newTask to someday".to_string(),
+            _ => String::new(),
         }
     };
 
@@ -235,6 +238,9 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
     return id of newTask
 end tell"#
     );
+
+    // Debug: uncomment to see the generated script
+    // eprintln!("AppleScript:\n{}", script);
 
     let id = run_applescript(&script)?;
     let id = id.trim().to_string();
