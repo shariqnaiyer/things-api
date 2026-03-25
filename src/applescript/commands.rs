@@ -12,7 +12,7 @@ fn things_url_update(id_expr: &str, params: &str) -> String {
     } else {
         format!("&auth-token={token}")
     };
-    format!("set tid to id of {id_expr}\ndo shell script \"open 'things:///update?id=\" & tid & \"{params}{auth}'\"")
+    format!("set tid to id of {id_expr}\ndo shell script \"open -g 'things:///update?id=\" & tid & \"{params}{auth}'\"")
 }
 
 /// Escape a string for safe embedding in AppleScript double-quoted strings.
@@ -34,7 +34,11 @@ fn parse_optional(s: &str) -> Option<String> {
 // Tasks
 // ---------------------------------------------------------------------------
 
-pub fn get_tasks(list_filter: Option<&str>) -> Result<Vec<Task>, String> {
+pub fn get_tasks(
+    list_filter: Option<&str>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<Vec<Task>, String> {
     let list_spec = match list_filter {
         None | Some("inbox") | Some("") => "list \"Inbox\"".to_string(),
         Some("today") => "list \"Today\"".to_string(),
@@ -42,8 +46,14 @@ pub fn get_tasks(list_filter: Option<&str>) -> Result<Vec<Task>, String> {
         Some("anytime") => "list \"Anytime\"".to_string(),
         Some("someday") => "list \"Someday\"".to_string(),
         Some("logbook") => "list \"Logbook\"".to_string(),
+        Some("trash") => "list \"Trash\"".to_string(),
         Some(other) => format!("list \"{}\"", esc(other)),
     };
+
+    let offset_val = offset.unwrap_or(0);
+    let limit_val = limit.unwrap_or(50);
+    let start = offset_val + 1; // AppleScript is 1-indexed
+    let end = offset_val + limit_val;
 
     // Each task is serialised as a pipe-delimited record:
     // id|title|notes|due_date|project_title|area_title|tags|completed|canceled|creation_date|completion_date
@@ -51,7 +61,13 @@ pub fn get_tasks(list_filter: Option<&str>) -> Result<Vec<Task>, String> {
         r#"tell application "Things3"
     set output to ""
     set theTasks to to dos of {list_spec}
-    repeat with t in theTasks
+    set taskCount to count of theTasks
+    set startIdx to {start}
+    set endIdx to {end}
+    if endIdx > taskCount then set endIdx to taskCount
+    if startIdx > taskCount then return ""
+    repeat with i from startIdx to endIdx
+        set t to item i of theTasks
         set tid to id of t
         set ttitle to name of t
         set tnotes to notes of t
@@ -89,7 +105,7 @@ pub fn get_tasks(list_filter: Option<&str>) -> Result<Vec<Task>, String> {
         else
             set tcompletion to (tcompletion as string)
         end if
-        set output to output & tid & "|" & ttitle & "|" & tnotes & "|" & tdue & "|" & tproject & "|" & tarea & "|" & ttags & "|" & tcompleted & "|" & tcanceled & "|" & tcreation & "|" & tcompletion & "\n"
+        set output to output & tid & "␞" & ttitle & "␞" & tnotes & "␞" & tdue & "␞" & tproject & "␞" & tarea & "␞" & ttags & "␞" & tcompleted & "␞" & tcanceled & "␞" & tcreation & "␞" & tcompletion & "␟"
     end repeat
     return output
 end tell"#
@@ -97,9 +113,9 @@ end tell"#
 
     let raw = run_applescript(&script)?;
     let tasks = raw
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(parse_task_line)
+        .split('␟')
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| parse_task_line(l.trim()))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(tasks)
@@ -146,7 +162,7 @@ pub fn get_task_by_id(task_id: &str) -> Result<Task, String> {
     else
         set tcompletion to (tcompletion as string)
     end if
-    return tid & "|" & ttitle & "|" & tnotes & "|" & tdue & "|" & tproject & "|" & tarea & "|" & ttags & "|" & tcompleted & "|" & tcanceled & "|" & tcreation & "|" & tcompletion
+    return tid & "␞" & ttitle & "␞" & tnotes & "␞" & tdue & "␞" & tproject & "␞" & tarea & "␞" & ttags & "␞" & tcompleted & "␞" & tcanceled & "␞" & tcreation & "␞" & tcompletion
 end tell"#,
         id = esc(task_id)
     );
@@ -156,7 +172,7 @@ end tell"#,
 }
 
 fn parse_task_line(line: &str) -> Result<Task, String> {
-    let parts: Vec<&str> = line.splitn(11, '|').collect();
+    let parts: Vec<&str> = line.splitn(11, '␞').collect();
     if parts.len() < 11 {
         return Err(format!("Unexpected task format: {}", line));
     }
@@ -218,21 +234,21 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
     // We handle this after task creation via the URL scheme.
     let checklist_script = String::new();
 
-    // Build list/project assignment after creation.
-    // Things 3 smart lists aren't containers — use URL scheme to schedule.
+    // Project assignment happens in AppleScript; list moves happen after via URL scheme
     let move_script = if let Some(project) = &payload.project {
         format!(
             "set theProject to project \"{}\"\nmove newTask to theProject",
             esc(project)
         )
     } else {
-        match payload.list.as_deref() {
-            Some("today") => things_url_update("newTask", "&list=today"),
-            Some("someday") => things_url_update("newTask", "&list=someday"),
-            Some("upcoming") => things_url_update("newTask", "&list=upcoming"),
-            Some("anytime") => things_url_update("newTask", "&list=anytime"),
-            _ => String::new(),
-        }
+        String::new()
+    };
+    let list_move = match payload.list.as_deref() {
+        Some("today") => Some("today"),
+        Some("someday") => Some("someday"),
+        Some("upcoming") => Some("upcoming"),
+        Some("anytime") => Some("anytime"),
+        _ => None,
     };
 
     let mut lines = vec![
@@ -281,11 +297,25 @@ pub fn create_task(payload: &CreateTask) -> Result<Task, String> {
             let json_str = format!("[{}]", checklist_json.join(","));
             let encoded = urlencoding::encode(&json_str);
             let url = format!("things:///update?id={id}&checklist-items={encoded}{auth}");
-            let open_script = format!("do shell script \"open '{}'\"", url.replace('\'', "'\\''"));
+            let open_script = format!("do shell script \"open -g '{}'\"", url.replace('\'', "'\\''"));
             let _ = run_applescript(&open_script);
             // Small delay to let Things process the URL
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
+    }
+
+    // Move to list via URL scheme (must happen after creation)
+    if let Some(list) = list_move {
+        let token = things_auth_token();
+        let auth = if token.is_empty() {
+            String::new()
+        } else {
+            format!("&auth-token={token}")
+        };
+        let url = format!("things:///update?id={id}&when={list}{auth}");
+        let open_script = format!("do shell script \"open -g '{}'\"", url.replace('\'', "'\\''"));
+        let _ = run_applescript(&open_script);
+        std::thread::sleep(std::time::Duration::from_millis(500));
     }
 
     get_task_by_id(&id)
@@ -321,30 +351,49 @@ pub fn update_task(task_id: &str, payload: &UpdateTask) -> Result<Task, String> 
             esc(project)
         ));
     }
-    // List moves are handled after the main update via URL scheme
+    if let Some(true) = payload.completed {
+        updates.push("set status of t to completed".to_string());
+    }
+    // List moves and uncomplete are handled after the main update via URL scheme
     let list_move = payload.list.as_deref();
+    let uncomplete = matches!(payload.completed, Some(false));
 
-    if updates.is_empty() {
+    if updates.is_empty() && !uncomplete && list_move.is_none() {
         return get_task_by_id(task_id);
     }
 
-    let update_body = updates.join("\n    ");
+    if !updates.is_empty() {
+        let update_body = updates.join("\n    ");
 
-    let script = format!(
-        r#"tell application "Things3"
+        let script = format!(
+            r#"tell application "Things3"
     set t to to do id "{id}"
     {update_body}
 end tell"#,
-        id = esc(task_id),
-    );
+            id = esc(task_id),
+        );
 
-    run_applescript(&script)?;
+        run_applescript(&script)?;
+    }
+
+    if uncomplete {
+        let token = things_auth_token();
+        let auth = if token.is_empty() {
+            String::new()
+        } else {
+            format!("&auth-token={token}")
+        };
+        let url = format!("things:///update?id={}&completed=false{}", task_id, auth);
+        let open_script = format!("do shell script \"open -g '{}'\"", url.replace('\'', "'\\''"));
+        let _ = run_applescript(&open_script);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
 
     // Handle list move via URL scheme if requested
     if let Some(list) = list_move {
         let move_script = things_url_update(
             &format!("to do id \"{}\"", esc(task_id)),
-            &format!("&list={list}"),
+            &format!("&when={list}"),
         );
         let move_apple = format!(
             "tell application \"Things3\"\n    {}\nend tell",
@@ -405,20 +454,20 @@ pub fn get_projects() -> Result<Vec<Project>, String> {
         end repeat
         set pcompleted to (status of p is completed)
         set pcanceled to (status of p is canceled)
-        set output to output & pid & "|" & ptitle & "|" & pnotes & "|" & parea & "|" & ptags & "|" & pcompleted & "|" & pcanceled & "\n"
+        set output to output & pid & "␞" & ptitle & "␞" & pnotes & "␞" & parea & "␞" & ptags & "␞" & pcompleted & "␞" & pcanceled & "␟"
     end repeat
     return output
 end tell"#;
 
     let raw = run_applescript(script)?;
-    raw.lines()
-        .filter(|l| !l.is_empty())
-        .map(parse_project_line)
+    raw.split('␟')
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| parse_project_line(l.trim()))
         .collect()
 }
 
 fn parse_project_line(line: &str) -> Result<Project, String> {
-    let parts: Vec<&str> = line.splitn(7, '|').collect();
+    let parts: Vec<&str> = line.splitn(7, '␞').collect();
     if parts.len() < 7 {
         return Err(format!("Unexpected project format: {}", line));
     }
@@ -486,20 +535,20 @@ pub fn get_areas() -> Result<Vec<Area>, String> {
                 set atags to atags & "," & name of tg
             end if
         end repeat
-        set output to output & aid & "|" & atitle & "|" & atags & "\n"
+        set output to output & aid & "␞" & atitle & "␞" & atags & "␟"
     end repeat
     return output
 end tell"#;
 
     let raw = run_applescript(script)?;
-    raw.lines()
-        .filter(|l| !l.is_empty())
-        .map(parse_area_line)
+    raw.split('␟')
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| parse_area_line(l.trim()))
         .collect()
 }
 
 fn parse_area_line(line: &str) -> Result<Area, String> {
-    let parts: Vec<&str> = line.splitn(3, '|').collect();
+    let parts: Vec<&str> = line.splitn(3, '␞').collect();
     if parts.len() < 3 {
         return Err(format!("Unexpected area format: {}", line));
     }

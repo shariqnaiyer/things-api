@@ -49,6 +49,8 @@ pub struct Area {
 #[derive(Debug, Deserialize)]
 pub struct TasksQuery {
     pub list: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +72,7 @@ pub struct UpdateTask {
     pub list: Option<String>,
     pub tags: Option<Vec<String>>,
     pub project: Option<String>,
+    pub completed: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

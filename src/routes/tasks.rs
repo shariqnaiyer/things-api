@@ -9,7 +9,7 @@ use crate::applescript::commands;
 use crate::models::{CreateTask, ErrorResponse, TasksQuery, UpdateTask};
 
 pub async fn list_tasks(Query(query): Query<TasksQuery>) -> impl IntoResponse {
-    match commands::get_tasks(query.list.as_deref()) {
+    match commands::get_tasks(query.list.as_deref(), query.limit, query.offset) {
         Ok(tasks) => (StatusCode::OK, Json(serde_json::json!(tasks))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
