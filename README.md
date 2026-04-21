@@ -1,4 +1,6 @@
-# things-api
+# things-anywhere
+
+> **Disclaimer:** This project is not affiliated with, endorsed by, or associated with [Cultured Code](https://culturedcode.com/) or Things 3 in any way. Things 3 is a trademark of Cultured Code GmbH & Co. KG.
 
 A REST API server for [Things 3](https://culturedcode.com/things/) (macOS task manager), written in Rust with [Axum](https://github.com/tokio-rs/axum). Bridges HTTP to Things 3 via AppleScript (`osascript`).
 
@@ -76,9 +78,9 @@ curl http://localhost:3333/health
 
 Returns tasks from a Things 3 list. Defaults to **Inbox**.
 
-| Query param | Values |
-|---|---|
-| `list` | `inbox` (default), `today`, `upcoming`, `anytime`, `someday`, `logbook` |
+| Query param | Values                                                                  |
+| ----------- | ----------------------------------------------------------------------- |
+| `list`      | `inbox` (default), `today`, `upcoming`, `anytime`, `someday`, `logbook` |
 
 ```bash
 # Inbox (default)
@@ -113,6 +115,7 @@ curl "http://localhost:3333/tasks?list=someday"
   }
 ]
 ```
+
 </details>
 
 ---
@@ -131,15 +134,15 @@ curl http://localhost:3333/tasks/ABCDEF123456
 
 Create a new task.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `title` | string | **yes** | Task title |
-| `notes` | string | no | Body text |
-| `due_date` | string | no | Date string parseable by AppleScript (e.g. `"March 25, 2026"`) |
-| `list` | string | no | `inbox`, `today`, `upcoming`, `anytime`, `someday` |
-| `project` | string | no | Exact project name (takes priority over `list`) |
-| `tags` | string[] | no | Tag names |
-| `checklist_items` | string[] | no | Checklist item titles |
+| Field             | Type     | Required | Description                                                    |
+| ----------------- | -------- | -------- | -------------------------------------------------------------- |
+| `title`           | string   | **yes**  | Task title                                                     |
+| `notes`           | string   | no       | Body text                                                      |
+| `due_date`        | string   | no       | Date string parseable by AppleScript (e.g. `"March 25, 2026"`) |
+| `list`            | string   | no       | `inbox`, `today`, `upcoming`, `anytime`, `someday`             |
+| `project`         | string   | no       | Exact project name (takes priority over `list`)                |
+| `tags`            | string[] | no       | Tag names                                                      |
+| `checklist_items` | string[] | no       | Checklist item titles                                          |
 
 ```bash
 curl -X POST http://localhost:3333/tasks \
@@ -162,14 +165,14 @@ Returns `201 Created` with the created task object.
 
 Update task fields. All fields are optional.
 
-| Field | Type | Description |
-|---|---|---|
-| `title` | string | New title |
-| `notes` | string | New notes |
-| `due_date` | string | New due date (empty string clears it) |
-| `list` | string | Move to list: `inbox`, `today`, `upcoming`, `anytime`, `someday` |
-| `tags` | string[] | Replace tag set |
-| `project` | string | Move to project (by name) |
+| Field      | Type     | Description                                                      |
+| ---------- | -------- | ---------------------------------------------------------------- |
+| `title`    | string   | New title                                                        |
+| `notes`    | string   | New notes                                                        |
+| `due_date` | string   | New due date (empty string clears it)                            |
+| `list`     | string   | Move to list: `inbox`, `today`, `upcoming`, `anytime`, `someday` |
+| `tags`     | string[] | Replace tag set                                                  |
+| `project`  | string   | Move to project (by name)                                        |
 
 ```bash
 curl -X PATCH http://localhost:3333/tasks/ABCDEF123456 \
@@ -238,10 +241,7 @@ curl http://localhost:3333/tags
 ```
 
 ```json
-[
-  { "name": "work" },
-  { "name": "errands" }
-]
+[{ "name": "work" }, { "name": "errands" }]
 ```
 
 ---
@@ -274,11 +274,11 @@ All errors return a JSON body:
 { "error": "AppleScript error: ..." }
 ```
 
-| Status | Meaning |
-|---|---|
-| `400` | Bad request / missing required field |
-| `404` | Task or resource not found |
-| `500` | AppleScript / Things 3 error |
+| Status | Meaning                              |
+| ------ | ------------------------------------ |
+| `400`  | Bad request / missing required field |
+| `404`  | Task or resource not found           |
+| `500`  | AppleScript / Things 3 error         |
 
 ## Notes
 
