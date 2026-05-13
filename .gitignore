@@ -1,6 +1,18 @@
 # Rust build artifacts (both root and control-plane/target/)
 target/
 
+# Swift Package Manager build dir
+.build/
+
+# mac-app .app bundle output + DMGs
+mac-app/build/
+*.dmg
+
+# Xcode (if anyone generates a project later)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
 # Local control-plane SQLite databases
 *.db
 *.db-shm
