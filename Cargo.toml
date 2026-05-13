@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "REST API server for Things 3 via AppleScript"
 license = "MIT"
+default-run = "things-api"
 
 [dependencies]
 axum = "0.8"

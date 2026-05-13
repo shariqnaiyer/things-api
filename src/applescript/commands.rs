@@ -428,6 +428,14 @@ end tell"#,
     Ok(())
 }
 
+pub fn empty_trash() -> Result<(), String> {
+    let script = r#"tell application "Things3"
+    empty trash
+end tell"#;
+    run_applescript(script)?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------

@@ -48,6 +48,10 @@ struct Args {
     /// Skip cleanup of tasks created by the write/mixed scenarios
     #[arg(long)]
     no_cleanup: bool,
+
+    /// After cleanup, also empty Things 3 trash so deleted tasks are purged
+    #[arg(long)]
+    empty_trash: bool,
 }
 
 #[derive(Copy, Clone, ValueEnum, Eq, PartialEq, Debug)]
@@ -251,6 +255,19 @@ async fn main() {
         }
     } else if !ids.is_empty() {
         cleanup(Arc::clone(&ctx), ids).await;
+    }
+
+    if args.empty_trash {
+        println!();
+        println!("Emptying Things 3 trash...");
+        let t = Instant::now();
+        match ctx.request(Method::DELETE, "/trash").send().await {
+            Ok(r) if r.status().is_success() => {
+                println!("  trash emptied in {:.1}s", t.elapsed().as_secs_f64());
+            }
+            Ok(r) => eprintln!("  empty-trash failed: HTTP {}", r.status()),
+            Err(e) => eprintln!("  empty-trash failed: {}", e),
+        }
     }
 }
 

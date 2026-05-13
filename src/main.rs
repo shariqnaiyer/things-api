@@ -28,6 +28,7 @@ use routes::{
     projects::list_projects,
     tags::{list_areas, list_tags},
     tasks::{complete_task, create_task, delete_task, get_task, list_tasks, update_task},
+    trash::empty_trash,
 };
 
 #[derive(OpenApi)]
@@ -47,6 +48,7 @@ use routes::{
         routes::projects::list_projects,
         routes::tags::list_tags,
         routes::tags::list_areas,
+        routes::trash::empty_trash,
     ),
     components(schemas(
         models::Task,
@@ -64,6 +66,7 @@ use routes::{
         (name = "projects", description = "Projects in Things 3"),
         (name = "tags", description = "Tags in Things 3"),
         (name = "areas", description = "Areas in Things 3"),
+        (name = "trash", description = "Trash management in Things 3"),
     ),
     modifiers(&BearerAuthAddon),
 )]
@@ -155,7 +158,8 @@ fn router(auth_token: Option<String>) -> Router {
         .route("/tasks/{id}/complete", patch(complete_task))
         .route("/projects", get(list_projects))
         .route("/tags", get(list_tags))
-        .route("/areas", get(list_areas));
+        .route("/areas", get(list_areas))
+        .route("/trash", axum::routing::delete(empty_trash));
 
     let api_routes = if let Some(token) = auth_token {
         let token = Arc::new(token);

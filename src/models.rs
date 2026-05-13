@@ -50,7 +50,7 @@ pub struct Area {
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct TasksQuery {
-    /// Which Things 3 list to read from. One of `inbox`, `today`, `upcoming`, `anytime`, `someday`, `logbook`. Defaults to `inbox`.
+    /// Which Things 3 list to read from. One of `inbox`, `today`, `upcoming`, `anytime`, `someday`, `logbook`, `trash`. Defaults to `inbox`.
     pub list: Option<String>,
     /// Maximum number of tasks to return.
     pub limit: Option<usize>,
